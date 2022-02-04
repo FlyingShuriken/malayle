@@ -1,10 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from '../styles/Home.module.css'
 import Keyboard from 'react-simple-keyboard';
 import 'react-simple-keyboard/build/css/index.css';
-// import useLocalStorageState from 'use-local-storage-state'
+import useLocalStorageState from 'use-local-storage-state'
 
 export default function Home() {
+
+  const [globalTodaysWord, setGlobalTodaysWord] = useState('')
+
+  const checkIfSameToTodaysWord = async (word) => {
+    const today = new Date();
+    const req = await fetch(`api/${today.getUTCFullYear().toString() + ("00" + (today.getUTCMonth() + 1)).slice(-2) + ("00" + today.getUTCDate()).slice(-2)}`)
+    const todaysWord = await req.json();
+    return word.toUpperCase() === todaysWord.data.toUpperCase()
+  }
+  const [wordId, setWordId] = useState(0)
 
   const [wordsArray, setWords] = useState([
     [' ', ' ', ' ', ' ', ' ',],
@@ -13,89 +23,133 @@ export default function Home() {
     [' ', ' ', ' ', ' ', ' ',],
     [' ', ' ', ' ', ' ', ' ',],
   ]);
-
   const [completedArray, setCompletedArray] = useState([
     false, false, false, false, false
   ])
-
   const [ended, setEnded] = useState(false);
 
+  const [defaultLatestWord, setDefaultLatestWord, { isPersistent }] = useLocalStorageState('latestWord', { latestWord: undefined });
+  const [defaultWordsArray, setDefaultWordsArray] = useLocalStorageState('wordsArray', wordsArray);
+  const [defaultCompletedArray, setDefaultCompletedArray] = useLocalStorageState('completedArray', completedArray);
+  const [defaultEnded, setDefaultEnded] = useLocalStorageState('ended', ended);
 
-  const onKeyPress = async (button) => {
-    console.log(completedArray)
-    if (ended) return
-    if (button === "{enter}") {
-      const newWordsArray = wordsArray.filter(word => word.join('') !== '     ').reverse();
-      const i = newWordsArray[0];
-      if (i === undefined) return
-      const word = i.join('');
-      if (word.includes(' ')) return
-      if (word !== '     ') {
-        if (await checkIfSameToTodaysWord(word) === true) {
-          const abc = [...document.getElementsByClassName('tile-container')[0].children];
-          var texts = []
-          abc.forEach(ele => {
-            const childs = [...ele.children]
-            var text = ''
-            childs.forEach(child => {
-              text += child.innerText
+  const refreshDefault = (val) => {
+    const conf = val.conf;
+    if (conf === 'wordsArray') {
+      setWords(val.val);
+      setDefaultWordsArray(val.val);
+    } else if (conf === 'completedArray') {
+      setCompletedArray(val.val)
+      setDefaultCompletedArray(val.val);
+    } else if (conf === 'ended') {
+      setEnded(val.val)
+      setDefaultEnded(val.val);
+    }
+  }
 
-            })
-            texts.push(text)
+  const handleEnter = async (i, todaysWord) => {
+    if (i === undefined) return
+    const word = i.join('');
+    if (word.includes(' ')) return
+    if (word !== '     ') {
+      if (await checkIfSameToTodaysWord(word) === true) {
+        const abc = [...document.getElementsByClassName('tile-container')[0].children];
+        var texts = []
+        abc.forEach(ele => {
+          const childs = [...ele.children]
+          var text = ''
+          childs.forEach(child => {
+            text += child.innerText
+
           })
-          for (const text of texts) {
-            if (await checkIfSameToTodaysWord(text)) {
-              [...abc[texts.indexOf(text)].children].forEach(child => {
-                child.classList.remove('Home_word_input_empty__FybGD')
-                child.classList.add('Home_word_input_correct__5FNJ6')
-                setEnded(true)
-                const cloned_completedArray = []
-                completedArray.forEach(ele => { cloned_completedArray.push(ele) })
-                cloned_completedArray[texts.indexOf(text)] = true
-                setCompletedArray(cloned_completedArray)
-              })
-            }
-          }
-          return
-        } else {
-          if (!await checkIfWordValid(word)) {
-            const cloned = []
-            wordsArray.forEach(i => cloned.push(i));
-            cloned[wordsArray.indexOf(i)] = [' ', ' ', ' ', ' ', ' ',];
-            setWords(cloned);
-            return
-          } else {
-            const today = new Date();
-            const req = await fetch(`api/${today.getUTCFullYear().toString() + ("00" + (today.getUTCMonth() + 1)).slice(-2) + ("00" + today.getUTCDate()).slice(-2)}`)
-            const todaysWord = await req.json();
-            const splitedTodaysWord = todaysWord.data.toUpperCase().split('')
-            console.log(splitedTodaysWord)
-            const abc = [...document.getElementsByClassName('tile-container')[0].children];
-            var eles = [];
-            abc.forEach(ele => {
-              const childs = [...ele.children]
-              eles.push(childs)
+          texts.push(text)
+        })
+        for (const text of texts) {
+          if (await checkIfSameToTodaysWord(text)) {
+            [...abc[texts.indexOf(text)].children].forEach(child => {
+              child.classList.remove('Home_word_input_empty__FybGD')
+              child.classList.add('Home_word_input_correct__5FNJ6')
+              refreshDefault({ conf: 'ended', val: true })
+              const cloned_completedArray = []
+              completedArray.forEach(ele => { cloned_completedArray.push(ele) })
+              cloned_completedArray[texts.indexOf(text)] = true
+              refreshDefault({ conf: 'completedArray', val: cloned_completedArray })
             })
-            eles[wordsArray.indexOf(i)].forEach(ele => {
-              if (ele.innerText === splitedTodaysWord[eles[wordsArray.indexOf(i)].indexOf(ele)]) {
-                ele.classList.remove('Home_word_input_empty__FybGD')
-                ele.classList.add('Home_word_input_correct__5FNJ6')
-              } else if (splitedTodaysWord.includes(ele.innerText)) {
-                ele.classList.remove('Home_word_input_empty__FybGD')
-                ele.classList.add('Home_word_input_wrong_place__8492H')
-              } else {
-                ele.classList.remove('Home_word_input_empty__FybGD')
-                ele.classList.add('Home_word_input_wrong__BJ0QI')
-              }
-            })
-            const cloned_completedArray = []
-            completedArray.forEach(yes => cloned_completedArray.push(yes))
-            cloned_completedArray[wordsArray.indexOf(i)] = true
-            console.log(cloned_completedArray, wordsArray.indexOf(i))
-            setCompletedArray(cloned_completedArray)
           }
         }
+        return
+      } else {
+        if (!await checkIfWordValid(word)) {
+          const cloned = []
+          defaultWordsArray.forEach(i => cloned.push(i));
+          cloned[defaultWordsArray.indexOf(i)] = [' ', ' ', ' ', ' ', ' ',];
+          refreshDefault({ conf: 'wordsArray', val: cloned });
+          return
+        } else {
+          const splitedTodaysWord = todaysWord.toUpperCase().split('')
+          const abc = [...document.getElementsByClassName('tile-container')[0].children];
+          var eles = [];
+          abc.forEach(ele => {
+            const childs = [...ele.children]
+            eles.push(childs)
+          })
+          eles[defaultWordsArray.indexOf(i)].forEach(ele => {
+            if (ele.innerText === splitedTodaysWord[eles[defaultWordsArray.indexOf(i)].indexOf(ele)]) {
+              ele.classList.remove('Home_word_input_empty__FybGD')
+              ele.classList.add('Home_word_input_correct__5FNJ6')
+            } else if (splitedTodaysWord.includes(ele.innerText)) {
+              ele.classList.remove('Home_word_input_empty__FybGD')
+              ele.classList.add('Home_word_input_wrong_place__8492H')
+            } else {
+              ele.classList.remove('Home_word_input_empty__FybGD')
+              ele.classList.add('Home_word_input_wrong__BJ0QI')
+            }
+          })
+          const cloned_completedArray = []
+          completedArray.forEach(yes => cloned_completedArray.push(yes))
+          cloned_completedArray[defaultWordsArray.indexOf(i)] = true
+          refreshDefault({ conf: 'completedArray', val: cloned_completedArray })
+        }
       }
+    }
+  }
+
+  const checkIfConfigAxist = async (todaysWord) => {
+    if (!isPersistent) setDefaultLatestWord(todaysWord);
+    else if (defaultLatestWord === undefined) {
+      setDefaultLatestWord(todaysWord)
+    } else if (defaultLatestWord === todaysWord) {
+      setWords(defaultWordsArray);
+      setCompletedArray(defaultCompletedArray);
+      setEnded(defaultEnded);
+      const newWordsArray = [...defaultWordsArray].filter(word => word.join('') !== '     ').reverse();
+      for (const array of newWordsArray) {
+        await handleEnter(array, todaysWord)
+      }
+      if (!isPersistent) {
+        setDefaultWordsArray(wordsArray);
+      } else { setWords(defaultWordsArray) }
+    }
+  }
+
+
+  useEffect(() => {
+    const todaysWord = async () => {
+      const today = new Date();
+      fetch(`api/${today.getUTCFullYear().toString() + ("00" + (today.getUTCMonth() + 1)).slice(-2) + ("00" + today.getUTCDate()).slice(-2)}`)
+        .then(req => req.json())
+        .then((res) => {
+          setGlobalTodaysWord(res.data);
+          checkIfConfigAxist(res.data);
+        })
+    }
+    todaysWord();
+  }, [wordId])
+
+  const onKeyPress = async (button) => {
+    if (ended) return
+    if (button === "{enter}") {
+      handleEnter();
     } else if (button === "{bksp}") {
       var newWordsArray = wordsArray.filter(word => word.join("") !== '     ').filter(word => word.join("") != '     ')
       newWordsArray = newWordsArray[newWordsArray.length - 1]
@@ -111,9 +165,7 @@ export default function Home() {
       const cloned = []
       wordsArray.forEach(i => cloned.push(i));
       cloned[wordsArray.indexOf(newWordsArray)] = remove;
-      setWords(cloned);
-
-
+      refreshDefault({ conf: 'wordsArray', val: cloned });
     } else {
       for (const i of wordsArray) {
         if (i.includes(' ') && wordsArray.indexOf(i) !== 0) {
@@ -121,24 +173,17 @@ export default function Home() {
           const cloned = []
           wordsArray.forEach(i => cloned.push(i));
           cloned[wordsArray.indexOf(i)][i.indexOf(' ')] = button;
-          setWords(cloned);
+          refreshDefault({ conf: 'wordsArray', val: cloned });
           return
         } else if (i.includes(' ')) {
           const cloned = []
           wordsArray.forEach(i => cloned.push(i));
           cloned[wordsArray.indexOf(i)][i.indexOf(' ')] = button;
-          setWords(cloned);
+          refreshDefault({ conf: 'wordsArray', val: cloned });
           return
         }
       }
     }
-  }
-
-  const checkIfSameToTodaysWord = async (word) => {
-    const today = new Date();
-    const req = await fetch(`api/${today.getUTCFullYear().toString() + ("00" + (today.getUTCMonth() + 1)).slice(-2) + ("00" + today.getUTCDate()).slice(-2)}`)
-    const todaysWord = await req.json();
-    return word.toUpperCase() === todaysWord.data.toUpperCase()
   }
 
   const checkIfWordValid = async (word) => {
@@ -159,14 +204,14 @@ export default function Home() {
         </div>
         <div className={"flex " + styles.control_bar}>
           <a className='flex-1'>
-            <i className="bi bi-question-circle"></i>
+            {/* <i className="bi bi-question-circle"></i> */}
           </a>
           <a className='flex-1 text-center'>
             MALAYLE
           </a>
           <div className='flex-1 text-right'>
             <a className='m-2'><i className="bi bi-bar-chart"></i></a>
-            <a className=''><i className="bi bi-gear"></i></a>
+            {/* <a className=''><i className="bi bi-gear"></i></a> */}
           </div>
         </div>
       </header>
